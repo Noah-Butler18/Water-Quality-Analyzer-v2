@@ -1,5 +1,5 @@
 /*
- * TODO HARDWARE CONNECTIONS:
+ * HARDWARE CONNECTIONS:
  * --MCUs--
  * 		STM32F407
  *			GND <-> Breadboard GND rail
@@ -12,7 +12,7 @@
  *			PB7 <-> SDA (i2c to Arduino) ~~~ Use 5V to 3.3V logic level converter to interface between the 2 boards~~~
  *		Arduino
  *			GND <-> Breadboard GND rail
- *			+5V supply <-> BLE 5V input
+ *			+5V supply <-> Small +5V rail
  *			A0 <-> pH sensor analog voltage (to ADC)
  *			A1 <-> EC sensor analog voltage (to ADC)
  *			A5 <-> SCLK ~~~ Use 5V to 3.3V logic level converter to interface between the 2 boards~~~
@@ -33,12 +33,12 @@
  * 			GND <-> GND
  * 			DQ <-> PA3 (STM32) (hanging off 4.7kOhm pull up resistor connected to +Vdd)
  * 		pH sensor
- * 			VCC <-> 5V
+ * 			VCC <-> 5V (From Arduino supply)
  * 			GND <-> GND
  * 			GND <-> GND
  * 			Analog signal <-> A0 (Arduino)
  * 		EC sensor
- * 			VCC <-> 5V
+ * 			VCC <-> 5V (From Arduino supply)
  * 			GND <-> GND
  * 			Analog signal <-> A1 (Arduino)
  * --Connectivity--
@@ -52,7 +52,7 @@
  *			LV2 <-> PB7 (STM32 I2C SDA)
  * 		BLE Module
  * 			GND <-> GND
- * 			VCC <-> 5V
+ * 			VCC <-> 5V (From Arduino supply)
  * 			TXD (UART) <-> Arduino digital Pin 2 (UART RX)
  * 			RXD (UART) <-> Arduino digital Pin 3 (UART TX)
  */
@@ -79,7 +79,7 @@
  * 5. Build project
  * 6. Debug using STLINK GDB server configuration and remove "monitor arm semihosting enable" in startup if present
 */
-#define SEMIHOSTING_ENABLE
+//#define SEMIHOSTING_ENABLE
 
 #define NUM_OF_ANALOG_CONVERSIONS				2				//TDS and Turbidity
 
@@ -160,10 +160,9 @@ int main(void)
 	/************************ TIM INTERRUPT INIT ***************/
 	TIM2_5_IRQInterruptConfig(IRQ_NO_TIM2, ENABLE );
 	TIM2_5_IRQPriorityConfig(IRQ_NO_TIM2, NVIC_IRQ_PRIO_2 );
-
-
-	float freq = 0.75;
+	float freq = 0.5;
 	TIM2_5_SetIT(TIM2, freq);
+
 
 	while(1)
 	{
@@ -436,7 +435,6 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c)
 	*(++Bufferi2c) = TDSPPM & 0xFF;
 }
 
-
 void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 {
 	//User implementation of ADC_ApplicationEventCallBack API
@@ -486,11 +484,11 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 	{
 		//For multiple channels, need to be in single conversion mode for this program and will have to manually change channel selects
 
-		//1. Stop the ADC after each conversion
+		//1. Stop the ADC after each conversion. The ADC peripheral clock is still on, it just goes into power down mode
 		pADCHandle->pADCx->CR2 &= ~( 1 << ADC_CR2_ADON );
 
 		//2. Increment global tracking flag to see where we are in conversion order
-		++ADCSequenceIndex;
+		ADCSequenceIndex++;
 
 		//3. If we are done converting all channels, we need to reinitialize the order with user configuration values
 		if( ADCSequenceIndex > NUM_OF_ANALOG_CONVERSIONS )

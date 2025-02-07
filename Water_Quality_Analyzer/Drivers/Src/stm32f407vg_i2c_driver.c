@@ -228,7 +228,7 @@ void I2C_DeInit(I2C_RegDef_t *pI2Cx)
 
  	 * @retval 		- none
 
- 	 * @Note		- none
+ 	 * @Note		- This is a blocking call
 
 */
 void I2C_MasterSendData(I2C_Handle_t *pI2CHandle, uint8_t *pTxBuffer, uint32_t Len, uint8_t SlaveAddr, uint8_t Sr)
@@ -296,7 +296,7 @@ void I2C_MasterSendData(I2C_Handle_t *pI2CHandle, uint8_t *pTxBuffer, uint32_t L
 
  	 * @retval 		- none
 
- 	 * @Note		- none
+ 	 * @Note		- This is a blocking call
 
 */
 void I2C_MasterReceiveData(I2C_Handle_t *pI2CHandle, uint8_t *pRxBuffer, uint32_t Len, uint8_t SlaveAddr, uint8_t Sr)

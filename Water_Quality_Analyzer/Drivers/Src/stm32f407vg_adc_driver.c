@@ -612,24 +612,23 @@ void ADC_IRQHandling(ADC_Handle_t *pADCHandle)
 */
 void ADC_StartADC(ADC_Handle_t *pADCHandle)
 {
+	//Check if ADC is on (not in power down mode)
 	uint8_t temp = ( pADCHandle->pADCx->CR2 & ( 1 << ADC_CR2_ADON ) );
-
 	if( !temp )
 	{
 		ADC_PeripheralOnOffControl(pADCHandle->pADCx, ENABLE);
 	}
 
 	// Set ADC to start converting - if already converting, issue an application event
-
 	if( ADC_GetFlagStatus(pADCHandle->pADCx, ADC_FLAG_STRT) )
 	{
 
 		ADC_ApplicationEventCallBack(pADCHandle, ADC_ERROR_STRT);
 	}
 
+	//Start ADC conversion
+	//ADC_CR2_SWSTART is a read-write enabled bit that is set by software to start conversion and cleared by hardware as soon as the conversion starts
 	pADCHandle->pADCx->CR2 |= ( 1 << ADC_CR2_SWSTART );
-
-	//ADC_CR2_SWSTART is a read-write bit that set by software to start conversion and cleared by hardware as soon as the conversion starts
 }
 
 

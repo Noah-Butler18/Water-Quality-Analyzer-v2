@@ -182,6 +182,6 @@ void ADC_PeripheralOnOffControl(ADC_RegDef_t *pADCx, uint8_t EnOrDi);
 uint8_t ADC_GetFlagStatus(ADC_RegDef_t *pADCx, uint32_t FlagName);
 void ADC_ClearFlag(ADC_RegDef_t *pADCx, uint32_t FlagName);
 void ADC_StartADC(ADC_Handle_t *pADCHandle);
-__weak void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent);
+void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent);
 
 #endif /* INC_STM32F407VG_ADC_DRIVER_H_ */
