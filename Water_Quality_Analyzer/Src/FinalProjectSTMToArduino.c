@@ -79,7 +79,7 @@
  * 5. Build project
  * 6. Debug using STLINK GDB server configuration and remove "monitor arm semihosting enable" in startup if present
 */
-//#define SEMIHOSTING_ENABLE
+#define SEMIHOSTING_ENABLE
 
 #define NUM_OF_ANALOG_CONVERSIONS				2				//TDS and Turbidity
 
@@ -137,10 +137,8 @@ int main(void)
 	/************************ Semi-hosting INIT ***************/
 #ifdef SEMIHOSTING_ENABLE
 	initialise_monitor_handles();
-#endif
-
 	printf("Application starting...\n");
-
+#endif
 	/************************ DS18B20 INIT ***************/
 	DS18B20_Config();
 
@@ -175,8 +173,10 @@ int main(void)
 
 		NewValuesReady = 0;
 
+#ifdef SEMIHOSTING_ENABLE
 		printf("Sent:  | 0x%X | 0x%X | 0x%X | 0x%X | 0x%X | 0x%X |\n", BufferDataToArduino[0], BufferDataToArduino[1], BufferDataToArduino[2], BufferDataToArduino[3], BufferDataToArduino[4], BufferDataToArduino[5] );
 		printf("Current water readings: Temp - %.2f°C   TDS - %dppm   Turbidity - %.2f%% \n", Temperature, TDS, Turbidity);
+#endif
 	}
 }
 
@@ -219,7 +219,7 @@ void ADC_IRQHandler(void)
 
 		//2.4 Update global ADC variables - Turbidity
 		BufferADCTurbidityValue = BufferADCValues[1];
-		VoltsTurbidity = BufferADCTurbidityValue * 3.3 / 4095.0;
+		VoltsTurbidity = BufferADCTurbidityValue * (5.0 / 4095.0);
 		Turbidity = Turbidity_ConvertVoltageToPercentage(VoltsTurbidity);
 
 		//2.5 fit Temperature, TDS, and turbidity data into buffer to be sent over i2c bus
@@ -442,9 +442,9 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 	if( AppEvent == ADC_ERROR_STRT )
 	{
 		//Application attempting starting conversion with one already in progress
-
+#ifdef SEMIHOSTING_ENABLE
 		printf("ADC repeated start condition detected - suspending program...\n");
-
+#endif
 		while(1);
 	}
 
@@ -454,18 +454,22 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 
 		if( BufferADCValues[(pADCHandle->ADC_SeqLen) - 1] > ( pADCHandle->pADCx->HTR ) )
 		{
+#ifdef SEMIHOSTING_ENABLE
 			printf("Analog watch dog triggered - over voltage condition detected.\n");
+#endif
 		}
 		else if( BufferADCValues[(pADCHandle->ADC_SeqLen) - 1] < ( pADCHandle->pADCx->LTR ) )
 		{
+#ifdef SEMIHOSTING_ENABLE
 			printf("Analog watch dog triggered - under voltage condition detected.\n");
+#endif
 		}
 
+#ifdef SEMIHOSTING_ENABLE
 		float VoltsAWD = ( ( BufferADCValues[(pADCHandle->ADC_SeqLen) - 1] / 4095.0 ) * 3.3 );
-
 		printf("\nCurrent voltage reading: %f\n\n", VoltsAWD);
-
 		printf("Shutting down ADC...\n");
+#endif
 		ADC_PeripheralOnOffControl(pADCHandle->pADCx, DISABLE);
 
 		while(1);
@@ -475,7 +479,9 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 	{
 		//Overrun triggered
 
+#ifdef SEMIHOSTING_ENABLE
 		printf("Overrun condition detected - suspending program...\n");
+#endif
 
 		while(1);
 	}
