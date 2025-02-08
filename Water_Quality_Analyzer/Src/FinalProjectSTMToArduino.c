@@ -79,9 +79,16 @@
  * 5. Build project
  * 6. Debug using STLINK GDB server configuration and remove "monitor arm semihosting enable" in startup if present
 */
-#define SEMIHOSTING_ENABLE
+//#define SEMIHOSTING_ENABLE
+
+/*
+ * TODO: Comment out "#define SLEEP_MODE_ENABLE" if not using power saving
+ * Macro used to test power usage with power saving enabled vs disabled
+*/
+//#define SLEEP_MODE_ENABLE
 
 #define NUM_OF_ANALOG_CONVERSIONS				2				//TDS and Turbidity
+#define ARM_CM4_SCR_ADDR						( (__vo uint32_t *) 0xE000ED10 )
 
 ADC_Handle_t pADC1Handle;
 GPIO_Handle_t pGPIOAHandle;
@@ -118,14 +125,15 @@ __vo uint8_t NewValuesReady = 0;
 
 void I2C_MasterSendDataToArduino(void);
 void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiveTemperature);
-void initialize_i2c(void);
-void initialize_GPIO(void);
-void initialize_ADC(void);
+void I2C_WQEInitialize(void);
+void GPIO_WQEInitialize(void);
+void ADC_WQEInitialize(void);
 uint16_t TDS_ConvertVoltageToPPM(__vo float Voltage, __vo float TemperatureCompensation);
 uint16_t TDS_CalibratePPM(uint16_t UncalibratedTDSPPM);
 float Turbidity_ConvertVoltageToPercentage(__vo float Voltage);
 void I2C_ConvertTurbidityPercentageToBytes(float TurbidityPercentage, uint8_t *Bufferi2c);
 void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
+void PWR_SleepUntilInterrupt(void);
 
 #ifdef SEMIHOSTING_ENABLE
 //Enable semihosting
@@ -139,31 +147,30 @@ int main(void)
 	initialise_monitor_handles();
 	printf("Application starting...\n");
 #endif
-	/************************ DS18B20 INIT ***************/
+
+	/************************ Peripheral initializations ***************/
 	DS18B20_Config();
+	GPIO_WQEInitialize();
+	ADC_WQEInitialize();
+	I2C_WQEInitialize();
 
-	/************************ GPIO INIT ***************/
-	initialize_GPIO();
-
-	/************************ ADC INIT ***************/
-	initialize_ADC();
-
-	/************************ i2c INIT ***************/
-	initialize_i2c();
-
-	/************************ ADC INTERRUPT INIT ***************/
+	/************************ NVIC/Peripheral interrupt initializations ***************/
 	ADC_IRQInterruptConfig(IRQ_NO_ADC, ENABLE);
 	ADC_IRQPriorityConfig(IRQ_NO_ADC, NVIC_IRQ_PRIO_1 );
 
-	/************************ TIM INTERRUPT INIT ***************/
 	TIM2_5_IRQInterruptConfig(IRQ_NO_TIM2, ENABLE );
 	TIM2_5_IRQPriorityConfig(IRQ_NO_TIM2, NVIC_IRQ_PRIO_2 );
+
+	/************************ TIM interrupt configuration & enable ***************/
 	float freq = 0.5;
 	TIM2_5_SetIT(TIM2, freq);
 
 
 	while(1)
 	{
+#ifdef SLEEP_MODE_ENABLE
+		PWR_SleepUntilInterrupt();
+#endif
 		//When TIM2 interrupt is triggered, the ISR handles retrieving temperature reading and enables ADC
 			//When ADC ISR is triggered, it handles retrieving DR value from analog pin (TDS). It also handles i2c communications to arduino
 
@@ -292,7 +299,7 @@ void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiv
 }
 
 
-void initialize_GPIO(void)
+void GPIO_WQEInitialize(void)
 {
 	//Initialize the ADC input pins - PA1, PA2
 	memset(&pGPIOAHandle,0,sizeof(pGPIOAHandle));
@@ -330,7 +337,7 @@ void initialize_GPIO(void)
 	GPIO_Init(&GPIOi2cPins);
 }
 
-void initialize_i2c(void)
+void I2C_WQEInitialize(void)
 {
 	memset(&i2c1,0,sizeof(i2c1)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
 
@@ -344,7 +351,7 @@ void initialize_i2c(void)
 	I2C_Init(&i2c1);
 }
 
-void initialize_ADC(void)
+void ADC_WQEInitialize(void)
 {
 	memset(&pADC1Handle,0,sizeof(pADC1Handle));
 
@@ -433,6 +440,35 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c)
 	//First byte is MSB, second byte is LSB
 	*Bufferi2c = (TDSPPM >> 8) & 0xFF;
 	*(++Bufferi2c) = TDSPPM & 0xFF;
+}
+
+/*********************** Function Documentation ***************************************
+ *
+ 	 * @fn			- PWR_WFIEnterSleepMode
+ 	 * @brief  		- Puts ARM Cortex M-4 processor into sleep mode, saving power during downtime.
+ 	 * @brief  		-  The Cortex-M4 processor sleep modes reduce power consumption. The sleep modes your
+						device implements are implementation-defined. The modes can be one or both of the following:
+						• sleep mode stops the processor clock (Turns off processor clock)
+						• deep sleep mode stops the system clock and switches off the PLL and flash memory. (NOT USED IN THIS API)
+ 	 * @param 		- none
+ 	 * @retval 		- none
+ 	 * @Note		- ENTRY INTO SLEEP MODE: Enter SLEEP mode with WFI instruction
+ 	 * @Note		- EXIT OUT OF SLEEP MODE: Any peripheral interrupt acknowledged by the nested vectored interrupt
+              	  		controller (NVIC) can wake up the device from Sleep mode.
+*/
+void PWR_SleepUntilInterrupt(void)
+{
+	/* Clear SLEEPDEEP bit of Cortex System Control Register to ensure we are not entering deep sleep, just sleep mode */
+	__vo uint32_t *ARMCM4_SystemControlReg = ARM_CM4_SCR_ADDR;
+	uint32_t Sleep_Mask = 2;
+	*ARMCM4_SystemControlReg &= ~(1 << Sleep_Mask);
+
+#ifdef SEMIHOSTING_ENABLE
+	printf("Processor entering sleep mode\n");
+#endif
+	/* Execute WFI instruction on processor to enter sleep mode */
+	__asm volatile ("wfi");
+	/* Processor clock will wake up after an interrupt to the NVIC */
 }
 
 void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
