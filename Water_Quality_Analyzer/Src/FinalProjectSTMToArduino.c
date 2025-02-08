@@ -413,7 +413,7 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 		}
 
 #ifdef SEMIHOSTING_ENABLE
-		float VoltsAWD = ( *pThresholdValue / (float) ADC_DIGITAL_RESOLUTION ) * ANALOG_SENSOR_SUPPLY_VOLTAGE );
+		float VoltsAWD = ( *pThresholdValue / (float) ADC_DIGITAL_RESOLUTION ) * ANALOG_SENSOR_SUPPLY_VOLTAGE;
 		printf("\nCurrent voltage reading: %f\n\n", VoltsAWD);
 		printf("Shutting down ADC...\n");
 #endif

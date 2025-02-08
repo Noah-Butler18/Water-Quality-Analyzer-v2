@@ -112,13 +112,13 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
  * 5. Build project
  * 6. Debug using STLINK GDB server configuration and remove "monitor arm semihosting enable" in startup if present
 */
-//#define SEMIHOSTING_ENABLE
+#define SEMIHOSTING_ENABLE
 
 /*
  * TODO: Comment out "#define SLEEP_MODE_ENABLE" if not using power saving
  * Macro used to test power usage with power saving enabled vs disabled
 */
-//#define SLEEP_MODE_ENABLE
+#define SLEEP_MODE_ENABLE
 
 /*-------------------- END: USER CONFIG ITEMS --------------------*/
 
