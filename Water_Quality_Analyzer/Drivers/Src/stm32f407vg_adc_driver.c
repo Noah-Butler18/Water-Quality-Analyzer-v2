@@ -564,27 +564,17 @@ void ADC_IRQHandling(ADC_Handle_t *pADCHandle)
 	{
 		//3. Check if the interrupt was triggered by "end of conversion" flag
 
-		//3.1 Check if sequence has more than 1 conversions left in it
-		if( ( pADCHandle->ADC_SeqLen ) > 1 )
+		// Convert analog reading
+		ADC_HandleRead(pADCHandle);
+
+		// Decrement length of sequence tracker
+		pADCHandle->ADC_SeqLen--;
+
+		if( ( pADCHandle->ADC_SeqLen ) == 0 )
 		{
-			//3.2 if there is more than 1 conversions left in sequence, continue with conversions
-
-			ADC_HandleRead(pADCHandle);
-
-			//3.2.1 Decrement length of sequence tracker
-			pADCHandle->ADC_SeqLen--;
-		}
-		else if( ( pADCHandle->ADC_SeqLen ) == 1 )
-		{
-			//3.3 if there is only 1 conversion left in sequence, finish converting last analog value and then turn off interrupts and ADC
-
-			ADC_HandleRead(pADCHandle);
-
-			//3.3.1 Disable interrupts and turn off ADC
-			ADC_DisableIT(pADCHandle);
-
-			//The purpose of this is that when the timer interrupt is triggered, it will turn on the ADC and the ADC interrupts.
+			// If last conversion in sequence has occurred, disable interrupts and turn off ADC
 			//Because this is meant for a non-continuous application, this will save power in the down time
+			ADC_DisableIT(pADCHandle);
 		}
 
 		//NOTE: EOC flag should automatically be cleared by software read of DR

@@ -1,4 +1,7 @@
 /*
+ * Project: Embedded Water Quality Analyzer
+ * Author: Noah Butler
+ *
  * HARDWARE CONNECTIONS:
  * --MCUs--
  * 		STM32F407
@@ -90,15 +93,15 @@
 #define NUM_OF_ANALOG_CONVERSIONS				2				//TDS and Turbidity
 #define ARM_CM4_SCR_ADDR						( (__vo uint32_t *) 0xE000ED10 )
 
-ADC_Handle_t pADC1Handle;
-GPIO_Handle_t pGPIOAHandle;
-GPIO_Handle_t GPIOi2cPins;
-I2C_Handle_t i2c1;
+/* Application global variables */
+//Peripheral handles
+ADC_Handle_t ADCHandle;
+GPIO_Handle_t GPIOHandle;
+I2C_Handle_t I2CHandle;
 
 //1-wire DSB18B20 global variables
 uint8_t BufferOneWireRawTemperature[2];
-uint8_t BufferOneWireCommands;
-float Temperature = 0;
+
 
 //Common ADC global variables
 uint16_t BufferADCValues[NUM_OF_ANALOG_CONVERSIONS] = {0,0};
@@ -124,7 +127,7 @@ __vo float Turbidity = 0;
 __vo uint8_t NewValuesReady = 0;
 
 void I2C_MasterSendDataToArduino(void);
-void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiveTemperature);
+void DS18B20_MasterGetTemperature(uint8_t *BufferReceiveTemperature);
 void I2C_WQEInitialize(void);
 void GPIO_WQEInitialize(void);
 void ADC_WQEInitialize(void);
@@ -133,7 +136,10 @@ uint16_t TDS_CalibratePPM(uint16_t UncalibratedTDSPPM);
 float Turbidity_ConvertVoltageToPercentage(__vo float Voltage);
 void I2C_ConvertTurbidityPercentageToBytes(float TurbidityPercentage, uint8_t *Bufferi2c);
 void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
+
+#ifdef SLEEP_MODE_ENABLE
 void PWR_SleepUntilInterrupt(void);
+#endif
 
 #ifdef SEMIHOSTING_ENABLE
 //Enable semihosting
@@ -165,14 +171,24 @@ int main(void)
 	float freq = 0.5;
 	TIM2_5_SetIT(TIM2, freq);
 
+	/* Local variables */
+	float Temperature = 0.0;
 
 	while(1)
 	{
+
 #ifdef SLEEP_MODE_ENABLE
 		PWR_SleepUntilInterrupt();
 #endif
-		//When TIM2 interrupt is triggered, the ISR handles retrieving temperature reading and enables ADC
-			//When ADC ISR is triggered, it handles retrieving DR value from analog pin (TDS). It also handles i2c communications to arduino
+
+		// NOTE: when TIM interrupt is triggered, processor wakes up and starts executing sequentially from this point
+
+		// Get Temperature From DS18B20
+		DS18B20_MasterGetTemperature(BufferOneWireRawTemperature);
+		Temperature = DS18B20_ConvertTemp(BufferOneWireRawTemperature);
+
+		// ADC interrupt configuration & enable
+		ADC_EnableIT(&ADCHandle, BufferADCValues, (ADCHandle.ADC_Config.ADC_Seq_Len) );
 
 		//While not in an ISR values print to console every so often
 		while( !NewValuesReady )
@@ -192,22 +208,18 @@ int main(void)
 
 void TIM2_IRQHandler(void)
 {
+	// Note: Wakes up processor from sleep mode
+
+	// Clear interrupt flag
 	TIM2_5_IRQHandling(TIM2);
-
-	//1. Get Temperature From DS18B20
-	DS18B20_MasterGetTemperature(&BufferOneWireCommands, BufferOneWireRawTemperature);
-
-	//2. Update global temperature variable
-	Temperature = DS18B20_ConvertTemp( BufferOneWireRawTemperature);
-
-	//3. Enable ADC start up code
-	ADC_EnableIT(&pADC1Handle, BufferADCValues, (pADC1Handle.ADC_Config.ADC_Seq_Len) );
 }
 
 void ADC_IRQHandler(void)
 {
-	//1. Read value(s) in from TDS sensor first, then turbidity sensor
-	ADC_IRQHandling(&pADC1Handle);
+	// Note: Wakes up processor from sleep mode
+
+	// Read values in from TDS sensor first, then turbidity sensor
+	ADC_IRQHandling(&ADCHandle);
 
 	//2. At this point in program flow, all data conversions are done.
 	//   Calculate display values based off of voltages and then store all in buffer to be sent to Arduino via i2c
@@ -251,29 +263,30 @@ void ADC_IRQHandler(void)
 void I2C_MasterSendDataToArduino(void)
 {
 	//1. enable peripheral hardware
-	I2C_PeripheralControl(i2c1.pI2Cx, ENABLE);
+	I2C_PeripheralControl(I2CHandle.pI2Cx, ENABLE);
 
 	//2. start comms, send address phase, then send all information. Close comms once finished
 	Len = ( sizeof(BufferDataToArduino)/sizeof(BufferDataToArduino[0]) );
-	I2C_MasterSendData(&i2c1, BufferDataToArduino, Len, SlaveAddr, 0);
+	I2C_MasterSendData(&I2CHandle, BufferDataToArduino, Len, SlaveAddr, 0);
 
 	//3. Disable the I2C peripheral once communication is over
-	I2C_PeripheralControl(i2c1.pI2Cx,DISABLE);
+	I2C_PeripheralControl(I2CHandle.pI2Cx,DISABLE);
 }
 
 
-void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiveTemperature)
+void DS18B20_MasterGetTemperature(uint8_t *BufferReceiveTemperature)
 {
+	uint8_t TempSensorCommand = 0;
 	//1. Master initiates communication sequence (Master Tx) and waits for presence pulse from DS18B20 (Master Rx)
 	DS18B20_MasterSendInitializeSequence();
 
 	//2. Master sends skip ROM command since there is only 1 slave on bus (Master Tx)
-	*BufferCommands = MASTER_COMMAND_SKIP_ROM;
-	DS18B20_MasterSendData( BufferCommands , 1);
+	TempSensorCommand = MASTER_COMMAND_SKIP_ROM;
+	DS18B20_MasterSendData(&TempSensorCommand, 1);
 
 	//3. Master sends convert T command to make DS18B20 start converting (Master Tx)
-	*BufferCommands = MASTER_COMMAND_CONVERT_T;
-	DS18B20_MasterSendData( BufferCommands , 1);
+	TempSensorCommand = MASTER_COMMAND_CONVERT_T;
+	DS18B20_MasterSendData(&TempSensorCommand, 1);
 
 	//4. Master continuously sends read time slots to gauge when DS18B20 is finished converting temp (Master Tx)
 	//5. Master waits until it receives 1 '1' on the bus notifying it the temperature is ready (Master Rx)
@@ -284,15 +297,15 @@ void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiv
 	DS18B20_MasterSendInitializeSequence();
 
 	//7. Master sends skip ROM command since there is only 1 slave on bus (Master Tx)
-	*BufferCommands = MASTER_COMMAND_SKIP_ROM;
-	DS18B20_MasterSendData( BufferCommands , 1);
+	TempSensorCommand = MASTER_COMMAND_SKIP_ROM;
+	DS18B20_MasterSendData(&TempSensorCommand, 1);
 
 	//8. Master sends read scratch pad command (Master Tx)
-	*BufferCommands = MASTER_COMMAND_READ_SCRATCHPAD;
-	DS18B20_MasterSendData( BufferCommands , 1);
+	TempSensorCommand = MASTER_COMMAND_READ_SCRATCHPAD;
+	DS18B20_MasterSendData(&TempSensorCommand, 1);
 
 	//9. Master waits until 2 bytes of data have been sent (Master Rx)
-	DS18B20_MasterReceiveData(BufferReceiveTemperature, 2);
+	DS18B20_MasterReceiveData(BufferReceiveTemperature, 2U);
 
 	//10. Master sends a reset pulse to stop reading scratch pad (the temperature is only the first 2 bytes) is (Master Tx)
 	DS18B20_MasterSendInitializeSequence();
@@ -302,74 +315,74 @@ void DS18B20_MasterGetTemperature(uint8_t *BufferCommands, uint8_t *BufferReceiv
 void GPIO_WQEInitialize(void)
 {
 	//Initialize the ADC input pins - PA1, PA2
-	memset(&pGPIOAHandle,0,sizeof(pGPIOAHandle));
+	memset(&GPIOHandle,0,sizeof(GPIOHandle));
 
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_ANALOG;		//GPIO pin in analog mode for ADC
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_1;			//GPIO pin in analog mode for TDS ADC (PA1 is free IO)
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_PP;		//GPIO output type - don't care
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH;		//GPIO output speed - don't care
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;		//No pull up or pull down resistor
+	GPIOHandle.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_ANALOG;		//GPIO pin in analog mode for ADC
+	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_1;			//GPIO pin in analog mode for TDS ADC (PA1 is free IO)
+	GPIOHandle.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_PP;		//GPIO output type - don't care
+	GPIOHandle.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH;		//GPIO output speed - don't care
+	GPIOHandle.GPIO_PinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;		//No pull up or pull down resistor
 
-	pGPIOAHandle.pGPIOx = GPIOA;										//Using GPIOA peripheral
+	GPIOHandle.pGPIOx = GPIOA;										//Using GPIOA peripheral
 
-	GPIO_Init(&pGPIOAHandle);
+	GPIO_Init(&GPIOHandle);
 
-	pGPIOAHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_2;			//GPIO pin in analog mode for Turbidity ADC (PA2 is free IO)
+	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_2;			//GPIO pin in analog mode for Turbidity ADC (PA2 is free IO)
 
-	GPIO_Init(&pGPIOAHandle);
+	GPIO_Init(&GPIOHandle);
 
 	//Initialize I2C pins of the master STM32
-	memset(&GPIOi2cPins,0,sizeof(GPIOi2cPins)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
+	memset(&GPIOHandle,0,sizeof(GPIOHandle)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
 
-	GPIOi2cPins.pGPIOx = GPIOB;
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_ALTFN;
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinAltFunMode = GPIO_MODE_AF4;
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_OD;
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinPuPdControl = GPIO_PIN_PU;
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH; //4nS t_fall when pulling line down
+	GPIOHandle.pGPIOx = GPIOB;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_ALTFN;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinAltFunMode = GPIO_MODE_AF4;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_OD;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinPuPdControl = GPIO_PIN_PU;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH; //4nS t_fall when pulling line down
 
-		//SCL
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_6;
-	GPIO_Init(&GPIOi2cPins);
+	//SCL
+	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_6;
+	GPIO_Init(&GPIOHandle);
 
-		//SDA
-	GPIOi2cPins.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_7;
-	GPIO_Init(&GPIOi2cPins);
+	//SDA
+	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_7;
+	GPIO_Init(&GPIOHandle);
 }
 
 void I2C_WQEInitialize(void)
 {
-	memset(&i2c1,0,sizeof(i2c1)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
+	memset(&I2CHandle,0,sizeof(I2CHandle)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
 
-	i2c1.pI2Cx = I2C1;
-	i2c1.I2C_Config.I2C_SCLSpeed = I2C_SCL_SPEED_SM;
-	i2c1.I2C_Config.I2C_ACKControl = I2C_ACK_ENABLE;
-	i2c1.I2C_Config.I2C_DeviceAddress = 0x01;
-	i2c1.I2C_Config.I2C_FMDutyCycle = I2C_FM_DUTY_2;
+	I2CHandle.pI2Cx = I2C1;
+	I2CHandle.I2C_Config.I2C_SCLSpeed = I2C_SCL_SPEED_SM;
+	I2CHandle.I2C_Config.I2C_ACKControl = I2C_ACK_ENABLE;
+	I2CHandle.I2C_Config.I2C_DeviceAddress = 0x01;
+	I2CHandle.I2C_Config.I2C_FMDutyCycle = I2C_FM_DUTY_2;
 
 
-	I2C_Init(&i2c1);
+	I2C_Init(&I2CHandle);
 }
 
 void ADC_WQEInitialize(void)
 {
-	memset(&pADC1Handle,0,sizeof(pADC1Handle));
+	memset(&ADCHandle,0,sizeof(ADCHandle));
 
-	pADC1Handle.ADC_Config.ADC_ClkPrescaler = ADC_CLK_DIV_2; 				//ADC clk = 8MHz
-	pADC1Handle.ADC_Config.ADC_Resolution = ADC_RES_12BITS;					//DR resolution = 12 bits
-	pADC1Handle.ADC_Config.ADC_DataAlignment = ADC_RIGHT_ALIGNMENT;			//DR alignment = right
-	pADC1Handle.ADC_Config.ADC_Mode = ADC_SINGLE_CONVERSION_MODE;				//ADC mode
-	pADC1Handle.ADC_Config.ADC_SamplingTime[ADC_IN1] = ADC_SMP_480_CYCLES;	//Channel 1 sampling time = 480 cycles
-	pADC1Handle.ADC_Config.ADC_SamplingTime[ADC_IN2] = ADC_SMP_480_CYCLES;	//Channel 2 sampling time = 480 cycles
-	pADC1Handle.ADC_Config.ADC_AWDHT = 0xFFF;								//High voltage threshold: digital 4095 | analog 3.3V /// digital 2048 | analog 1.65V
-	pADC1Handle.ADC_Config.ADC_AWDLT = 0x0;									//Low voltage threshold: digital 0 | analog 0V /// digital 2048 | analog 1.65V
-	pADC1Handle.ADC_Config.ADC_Seq_Len = NUM_OF_ANALOG_CONVERSIONS;			//channel conversion sequence length = 1 channel
-	pADC1Handle.ADC_Config.ADC_Seq_Order[0] = ADC_IN1;						//ADC channel sequence order = 1) ADC_IN1 - TDS sensor
-	pADC1Handle.ADC_Config.ADC_Seq_Order[1] = ADC_IN2;						//ADC channel sequence order = 2) ADC_IN2 - Turbidity sensor
+	ADCHandle.ADC_Config.ADC_ClkPrescaler = ADC_CLK_DIV_2; 				//ADC clk = 8MHz
+	ADCHandle.ADC_Config.ADC_Resolution = ADC_RES_12BITS;					//DR resolution = 12 bits
+	ADCHandle.ADC_Config.ADC_DataAlignment = ADC_RIGHT_ALIGNMENT;			//DR alignment = right
+	ADCHandle.ADC_Config.ADC_Mode = ADC_SINGLE_CONVERSION_MODE;				//ADC mode
+	ADCHandle.ADC_Config.ADC_SamplingTime[ADC_IN1] = ADC_SMP_480_CYCLES;	//Channel 1 sampling time = 480 cycles
+	ADCHandle.ADC_Config.ADC_SamplingTime[ADC_IN2] = ADC_SMP_480_CYCLES;	//Channel 2 sampling time = 480 cycles
+	ADCHandle.ADC_Config.ADC_AWDHT = 0xFFF;								//High voltage threshold: digital 4095 | analog 3.3V /// digital 2048 | analog 1.65V
+	ADCHandle.ADC_Config.ADC_AWDLT = 0x0;									//Low voltage threshold: digital 0 | analog 0V /// digital 2048 | analog 1.65V
+	ADCHandle.ADC_Config.ADC_Seq_Len = NUM_OF_ANALOG_CONVERSIONS;			//channel conversion sequence length = 1 channel
+	ADCHandle.ADC_Config.ADC_Seq_Order[0] = ADC_IN1;						//ADC channel sequence order = 1) ADC_IN1 - TDS sensor
+	ADCHandle.ADC_Config.ADC_Seq_Order[1] = ADC_IN2;						//ADC channel sequence order = 2) ADC_IN2 - Turbidity sensor
 
-	pADC1Handle.pADCx = ADC1;												//Using ADC1 peripheral
+	ADCHandle.pADCx = ADC1;												//Using ADC1 peripheral
 
-	ADC_Init(&pADC1Handle);
+	ADC_Init(&ADCHandle);
 }
 
 uint16_t TDS_ConvertVoltageToPPM(__vo float Voltage, __vo float TemperatureCompensation)
@@ -442,6 +455,7 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c)
 	*(++Bufferi2c) = TDSPPM & 0xFF;
 }
 
+#ifdef SLEEP_MODE_ENABLE
 /*********************** Function Documentation ***************************************
  *
  	 * @fn			- PWR_WFIEnterSleepMode
@@ -470,6 +484,7 @@ void PWR_SleepUntilInterrupt(void)
 	__asm volatile ("wfi");
 	/* Processor clock will wake up after an interrupt to the NVIC */
 }
+#endif
 
 void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 {
@@ -524,7 +539,7 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 
 	if( AppEvent == ADC_EVENT_EOC )
 	{
-		//For multiple channels, need to be in single conversion mode for this program and will have to manually change channel selects
+		//For multiple channels, this implementation uses single conversion mode, manually changing channel selection between conversions
 
 		//1. Stop the ADC after each conversion. The ADC peripheral clock is still on, it just goes into power down mode
 		pADCHandle->pADCx->CR2 &= ~( 1 << ADC_CR2_ADON );
