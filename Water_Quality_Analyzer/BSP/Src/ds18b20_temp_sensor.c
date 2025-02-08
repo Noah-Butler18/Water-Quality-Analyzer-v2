@@ -7,11 +7,8 @@
 
 #include "ds18b20_temp_sensor.h"
 
-// Driver based off of DS18B20 Chip Datasheet:
+// NOTE: Driver based off of DS18B20 Chip Datasheet:
 // https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
-
-/* Limited visibility helper function prototypes */
-static void DS18B20_GPIOControl(uint8_t InOrOut);
 
 /*********************** Function Documentation ***************************************
  	 * @fn			- DS18B20_Config
@@ -136,7 +133,7 @@ void DS18B20_MasterReceiveData(uint8_t *RxBuffer, uint8_t len)
 void DS18B20_MasterSendInitializeSequence(void)
 {
 	//1. Master send reset pulse - send logic low on bus
-	DS18B20_GPIOControl( MASTER_SET_PIN_OUTPUT );
+	DS18B20_SET_PIN_OUTPUT();
 	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
 
 	//2. Wait 480us
@@ -145,7 +142,7 @@ void DS18B20_MasterSendInitializeSequence(void)
 	//3. DS18B20 waits 15-60us to send
 
 	//4. Master read presence pulse - DS18B20 write a logic 0 to the bus and holds it for 60-180us
-	DS18B20_GPIOControl( MASTER_SET_PIN_INPUT );
+	DS18B20_SET_PIN_INPUT();
 	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_PRESENCE_PULSE_USECS);
 		//Time elapsed at this point: ~630us+
 
@@ -174,7 +171,7 @@ void DS18B20_MasterSendInitializeSequence(void)
 void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
 {
 	//1. Master pulls 1-wire bus low and releases within 15us
-	DS18B20_GPIOControl(MASTER_SET_PIN_OUTPUT);
+	DS18B20_SET_PIN_OUTPUT();
 	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
 
 	if( WriteValue )
@@ -182,7 +179,7 @@ void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
 		//2. If generating a write '1' time slot, release bus within 15us but wait atleast 1us. Pull-up resistor will automatically pull bus up to HIGH
 
 		//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-		DS18B20_GPIOControl(MASTER_SET_PIN_INPUT);
+		DS18B20_SET_PIN_INPUT();
 	}
 
 	//3. Wait until end of write time slot for DS18B20 to sample the data bus (minimum 60us)
@@ -191,7 +188,7 @@ void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
 	//4. Release bus and wait recovery time in-between read or write time slots
 
 	//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-	DS18B20_GPIOControl(MASTER_SET_PIN_INPUT);
+	DS18B20_SET_PIN_INPUT();
 }
 
 /*********************** Function Documentation ***************************************
@@ -210,11 +207,11 @@ uint8_t DS18B20_MasterGenerateReadTimeSlot(void)
 {
 	//1. Master pulls 1-wire bus low for at least 1us then and releases
 
-	DS18B20_GPIOControl(MASTER_SET_PIN_OUTPUT);
+	DS18B20_SET_PIN_OUTPUT();
 	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
 
 	//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-	DS18B20_GPIOControl(MASTER_SET_PIN_INPUT);
+	DS18B20_SET_PIN_INPUT();
 
 	//2. DS18B20 has transmitted either a 1 or 0. Data is valid for at most 15us, so master should sample data before then
 	uint8_t val = GPIO_ReadFromInputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN);
@@ -245,29 +242,3 @@ float DS18B20_ConvertTemp(uint8_t *TempBuffer)
 	return ( (float) temperature / 16.0 );
 }
 
-
-/*---------------------------------- Helper functions ----------------------------------*/
-
-/*********************** Function Documentation ***************************************
- 	 * @fn			- DS18B20_GPIOControl
-
- 	 * @brief  		- API that configures GPIO pin to input or output
-
- 	 * @param 		- InOrOut: Input or output
-
- 	 * @retval 		- none
-
- 	 * @Note		- none
-*/
-static void DS18B20_GPIOControl(uint8_t InOrOut)
-{
-	if( InOrOut == MASTER_SET_PIN_INPUT )
-	{
-		DS18B20_GPIO_PORT->MODER &= ~( 0x3U << ( DS18B20_GPIO_PIN * 2U ) );
-	}
-	else
-	{
-		DS18B20_GPIO_PORT->MODER &= ~( 0x3U << ( DS18B20_GPIO_PIN * 2U ) ); 	//clear mode bit field first
-		DS18B20_GPIO_PORT->MODER |= ( 0x1U << ( DS18B20_GPIO_PIN * 2U ) );		//set pin as OUT
-	}
-}

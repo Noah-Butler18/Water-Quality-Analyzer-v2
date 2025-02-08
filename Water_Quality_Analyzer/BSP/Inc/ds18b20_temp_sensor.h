@@ -13,12 +13,12 @@
 /*
  * Application configurable items
  */
-#define DS18B20_GPIO_PORT						GPIOA					//PA3 is free IO according to user manual
-#define DS18B20_GPIO_PIN						GPIO_PIN_NO_3
-#define DS18B20_GPIO_PIN_OP_TYPE				GPIO_OP_TYPE_OD			//Fixed value - required for 1-wire protocol
-#define DS18B20_GPIO_PIN_NO_PUPD				GPIO_NO_PUPD			//Fixed value - will be using ~5kOhm external resistor. Should not be changed
+#define DS18B20_GPIO_PORT						(GPIOA)					//PA3 is free IO according to user manual
+#define DS18B20_GPIO_PIN						(GPIO_PIN_NO_3)
+#define DS18B20_GPIO_PIN_OP_TYPE				(GPIO_OP_TYPE_OD)			//Fixed value - required for 1-wire protocol
+#define DS18B20_GPIO_PIN_NO_PUPD				(GPIO_NO_PUPD)			//Fixed value - will be using ~5kOhm external resistor. Should not be changed
 
-#define DS18B20_TIM_PERIPHERAL					TIM5
+#define DS18B20_TIM_PERIPHERAL					(TIM5)
 
 
 /*
@@ -35,12 +35,6 @@
 
 #define MASTER_RX_INITIATE_USECS				(1U)
 #define MASTER_RX_SAMPLE_USECS					(10U)
-
-/*
- * Master GPIO pin control
- */
-#define MASTER_SET_PIN_INPUT					(0U)
-#define MASTER_SET_PIN_OUTPUT					(1U)
 
 /*
  * Master Tx ROM commands
@@ -61,6 +55,14 @@
 #define MASTER_COMMAND_RECALL_E2				(0xB8U)
 #define MASTER_COMMAND_READ_POWER_SUPPLY		(0xB4U)
 
+/*
+ * Data pin direction config macros
+ */
+#define DS18B20_SET_PIN_INPUT() 	( DS18B20_GPIO_PORT->MODER &= ~( 0x3U << ( DS18B20_GPIO_PIN * 2U ) ))
+#define DS18B20_SET_PIN_OUTPUT() 	do{ \
+										DS18B20_GPIO_PORT->MODER &= ~( 0x3U << ( DS18B20_GPIO_PIN * 2U ) ); \
+										DS18B20_GPIO_PORT->MODER |= ( 0x1U << ( DS18B20_GPIO_PIN * 2U ) ); \
+									} while(0)
 
 /******************************************************************************************
  *								APIs supported by this driver
