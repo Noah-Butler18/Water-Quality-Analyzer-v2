@@ -78,9 +78,6 @@
 #define I2C_BUFFER_SIZE							6
 
 /*-------------------- START: FUNCTION PROTOTYPES --------------------*/
-
-
-/*-------------------- END: FUNCTION PROTOTYPES --------------------*/
 void I2C_MasterSendDataToArduino(uint8_t *Buffer, uint32_t Length);
 void DS18B20_MasterGetTemperature(uint8_t *BufferReceiveTemperature);
 void I2C_WQEInitialize(void);
@@ -91,8 +88,9 @@ uint16_t TDS_CalibratePPM(uint16_t UncalibratedTDSPPM);
 float Turbidity_ConvertVoltageToPercentage(float Voltage);
 void I2C_ConvertTurbidityPercentageToBytes(float TurbidityPercentage, uint8_t *Bufferi2c);
 void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
-/*-------------------- START: USER CONFIG ITEMS --------------------*/
+/*-------------------- END: FUNCTION PROTOTYPES --------------------*/
 
+/*-------------------- START: USER CONFIG ITEMS --------------------*/
 /*
  * TODO: Comment out "#define SEMIHOSTING_ENABLE" if not using Semihosting
  *
@@ -119,7 +117,6 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
  * Macro used to test power usage with power saving enabled vs disabled
 */
 #define SLEEP_MODE_ENABLE
-
 /*-------------------- END: USER CONFIG ITEMS --------------------*/
 
 #endif /* FINALPROJECTSTMTOARDUINO_H_ */
