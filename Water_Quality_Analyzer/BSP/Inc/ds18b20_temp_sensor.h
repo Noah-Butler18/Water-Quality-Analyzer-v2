@@ -25,16 +25,18 @@
  * Master - DS18B20 Maxim 1-wire communication protocol timing requirements
  */
 #define MASTER_TX_RESET_HOLD_USECS				(480U)
-#define MASTER_HOLD_FOR_DS18B20_USECS			(60U)
 
-#define MASTER_RX_PRESENCE_PULSE_USECS			(150U)
-#define MASTER_RX_PRESENCE_HOLD_USECS			(330U)
+#define MASTER_RX_PRESENCE_PULSE_USECS			(60U)
+#define MASTER_RX_PRESENCE_HOLD_USECS			( 480U - MASTER_RX_PRESENCE_PULSE_USECS )
 
-#define MASTER_TX_RX_TIMESLOT_HOLD_USECS		(60U)
-#define MASTER_TX_RX_RECOVERY_HOLD_USECS		(0.1)
+#define MASTER_TX_RELEASE_BUS_DELAY_USECS		(1U)
+
+#define MASTER_TX_TIMESLOT_HOLD_USECS			(60U)
+#define MASTER_TX_RX_RECOVERY_HOLD_USECS		(1U)
 
 #define MASTER_RX_INITIATE_USECS				(1U)
 #define MASTER_RX_SAMPLE_USECS					(10U)
+#define MASTER_RX_TIMESLOT_HOLD_USECS			( 60U - (MASTER_RX_SAMPLE_USECS + MASTER_RX_INITIATE_USECS) )
 
 /*
  * Master Tx ROM commands
@@ -63,6 +65,14 @@
 										DS18B20_GPIO_PORT->MODER &= ~( 0x3U << ( DS18B20_GPIO_PIN * 2U ) ); \
 										DS18B20_GPIO_PORT->MODER |= ( 0x1U << ( DS18B20_GPIO_PIN * 2U ) ); \
 									} while(0)
+
+/*
+ * Data pin Tx/Rx macros
+ */
+#define DS18B20_PIN_WRITE_1() 		( DS18B20_GPIO_PORT->ODR |= ( 1 << DS18B20_GPIO_PIN ) )
+#define DS18B20_PIN_WRITE_0() 		( DS18B20_GPIO_PORT->ODR &= ~( 1 << DS18B20_GPIO_PIN ) )
+#define DS18B20_PIN_READ() 			( (DS18B20_GPIO_PORT->IDR >> DS18B20_GPIO_PIN) & 0x1U )
+
 
 /******************************************************************************************
  *								APIs supported by this driver

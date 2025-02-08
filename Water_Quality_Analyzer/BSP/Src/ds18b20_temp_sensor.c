@@ -43,6 +43,112 @@ void DS18B20_Config(void)
 }
 
 /*********************** Function Documentation ***************************************
+ 	 * @fn			- DS18B20_MasterSendInitializeSequence
+
+ 	 * @brief  		- API that master device uses to generate an initialization sequence on the 1-wire bus
+ 	 * @brief  		- All transactions on the 1-Wire bus begin with an initialization sequence
+ 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
+
+ 	 * @param 		- none
+
+ 	 * @retval 		- none
+
+ 	 * @Note		- none
+*/
+void DS18B20_MasterSendInitializeSequence(void)
+{
+	//1. Master send reset pulse - send logic low on bus
+	DS18B20_SET_PIN_OUTPUT();
+	DS18B20_PIN_WRITE_0();
+
+	//2. Wait 480us
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RESET_HOLD_USECS);
+
+	//3. DS18B20 waits 15-60us to send a presence pulse
+	// 	 DS18B20's presence pulse is logic 0 that is held for 60-180us
+	//	 Master then reads presence pulse and confirms slave device is ready or not
+	//   Thus, master can set pin input and wait 60us until ready to read.
+	DS18B20_SET_PIN_INPUT();
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_PRESENCE_PULSE_USECS);
+
+	// Time elapsed at this point: ~540+us
+
+	//5. Master confirms presence pulse was sent from DS18B20
+	while( ( DS18B20_PIN_READ() ) != GPIO_PIN_SET )
+		;
+
+	//6. Fulfill 1-wire requirement of master Rx phase being at least 480us
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_PRESENCE_HOLD_USECS);
+
+	// Time elapsed at this point: ~960+us
+}
+
+/*********************** Function Documentation ***************************************
+ 	 * @fn			- DS18B20_MasterGenerateWriteTimeSlot
+
+ 	 * @brief  		- API that master device uses to generate a write time slot on the 1-wire bus
+ 	 * @brief  		- All write time slots must be a minimum of 60µs in duration with a minimum of a 1µs recovery time
+ 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
+
+ 	 * @param 		- WriteValue: Either 1 or 0 representing data bit on serial line
+
+ 	 * @retval 		- none
+
+ 	 * @Note		- none
+*/
+inline void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
+{
+	//1. Master pulls 1-wire bus low and releases within 15us (Bus is released below when data pin is set to input
+	DS18B20_SET_PIN_OUTPUT();
+	DS18B20_PIN_WRITE_0();
+
+	if( WriteValue == GPIO_PIN_SET )
+	{
+		//2. If generating a write '1' time slot, release bus within 15us but wait at least 1us.
+		//   Pull-up resistor will automatically pull bus up to HIGH
+		TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RELEASE_BUS_DELAY_USECS);
+		DS18B20_SET_PIN_INPUT();
+	}
+
+	//3. Wait until end of write time slot for DS18B20 to sample the data bus (minimum 60us)
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_TIMESLOT_HOLD_USECS);
+
+	//4. Release bus and wait recovery time in-between read or write time slots
+	DS18B20_SET_PIN_INPUT();
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RX_RECOVERY_HOLD_USECS);
+}
+
+/*********************** Function Documentation ***************************************
+ 	 * @fn			- DS18B20_MasterGenerateReadTimeSlot
+
+ 	 * @brief  		- API that master device uses to generate a read time slot on the 1-wire bus
+ 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
+
+ 	 * @param 		- none
+
+ 	 * @retval 		- Read bit: Value on bus that was received by 1-wire master
+
+ 	 * @Note		- none
+*/
+inline uint8_t DS18B20_MasterGenerateReadTimeSlot(void)
+{
+	//1. Master pulls 1-wire bus low for at least 1us then and releases
+	DS18B20_SET_PIN_OUTPUT();
+	DS18B20_PIN_WRITE_0();
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_INITIATE_USECS);
+	DS18B20_SET_PIN_INPUT();
+
+	//2. DS18B20 has transmitted either a 1 or 0. Data is valid for at most 15us, so master should sample data before then
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_SAMPLE_USECS);
+	uint8_t val = DS18B20_PIN_READ();
+
+	//3. All read time slots are a minimum of 60 us
+	uint32_t Recovery_Microseconds = 1;
+	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, (MASTER_RX_TIMESLOT_HOLD_USECS + Recovery_Microseconds));
+	return val;
+}
+
+/*********************** Function Documentation ***************************************
  	 * @fn			- DS18B20_MasterSendData
 
  	 * @brief  		- API that master device uses to transmit serial data over 1-wire bus
@@ -115,111 +221,6 @@ void DS18B20_MasterReceiveData(uint8_t *RxBuffer, uint8_t len)
 		len--;
 		RxBuffer--;
 	}
-}
-
-/*********************** Function Documentation ***************************************
- 	 * @fn			- DS18B20_MasterSendInitializeSequence
-
- 	 * @brief  		- API that master device uses to generate an initialization sequence on the 1-wire bus
- 	 * @brief  		- All transactions on the 1-Wire bus begin with an initialization sequence
- 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
-
- 	 * @param 		- none
-
- 	 * @retval 		- none
-
- 	 * @Note		- none
-*/
-void DS18B20_MasterSendInitializeSequence(void)
-{
-	//1. Master send reset pulse - send logic low on bus
-	DS18B20_SET_PIN_OUTPUT();
-	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
-
-	//2. Wait 480us
-	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RESET_HOLD_USECS);
-
-	//3. DS18B20 waits 15-60us to send
-
-	//4. Master read presence pulse - DS18B20 write a logic 0 to the bus and holds it for 60-180us
-	DS18B20_SET_PIN_INPUT();
-	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_PRESENCE_PULSE_USECS);
-		//Time elapsed at this point: ~630us+
-
-	//5. Master confirms presence pulse was sent from DS18B20
-	while( !(GPIO_ReadFromInputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN)) )
-		;
-
-	//6. Fulfill 1-wire requirement of master Rx phase being at least 480us
-	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_RX_PRESENCE_HOLD_USECS);
-		//Time elapsed at this point: ~960us+
-}
-
-/*********************** Function Documentation ***************************************
- 	 * @fn			- DS18B20_MasterGenerateWriteTimeSlot
-
- 	 * @brief  		- API that master device uses to generate a write time slot on the 1-wire bus
- 	 * @brief  		- All write time slots must be a minimum of 60µs in duration with a minimum of a 1µs recovery time
- 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
-
- 	 * @param 		- WriteValue: Either 1 or 0 representing data bit on serial line
-
- 	 * @retval 		- none
-
- 	 * @Note		- none
-*/
-void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
-{
-	//1. Master pulls 1-wire bus low and releases within 15us
-	DS18B20_SET_PIN_OUTPUT();
-	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
-
-	if( WriteValue )
-	{
-		//2. If generating a write '1' time slot, release bus within 15us but wait atleast 1us. Pull-up resistor will automatically pull bus up to HIGH
-
-		//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-		DS18B20_SET_PIN_INPUT();
-	}
-
-	//3. Wait until end of write time slot for DS18B20 to sample the data bus (minimum 60us)
-	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RX_TIMESLOT_HOLD_USECS);
-
-	//4. Release bus and wait recovery time in-between read or write time slots
-
-	//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-	DS18B20_SET_PIN_INPUT();
-}
-
-/*********************** Function Documentation ***************************************
- 	 * @fn			- DS18B20_MasterGenerateReadTimeSlot
-
- 	 * @brief  		- API that master device uses to generate a read time slot on the 1-wire bus
- 	 * @brief  		- From: https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
-
- 	 * @param 		- none
-
- 	 * @retval 		- Read bit: Value on bus that was received by 1-wire master
-
- 	 * @Note		- none
-*/
-uint8_t DS18B20_MasterGenerateReadTimeSlot(void)
-{
-	//1. Master pulls 1-wire bus low for at least 1us then and releases
-
-	DS18B20_SET_PIN_OUTPUT();
-	GPIO_WriteToOutputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, 0);
-
-	//NOTE: There is a natural 5.75us delay from setting the GPIO pin to input, while running the peripheral clock at 16MHz. Thus, no need for delay
-	DS18B20_SET_PIN_INPUT();
-
-	//2. DS18B20 has transmitted either a 1 or 0. Data is valid for at most 15us, so master should sample data before then
-	uint8_t val = GPIO_ReadFromInputPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN);
-
-	//3. All read time slots are a minimum of 60 us
-	TIM2_5_Delay(DS18B20_TIM_PERIPHERAL, MASTER_TX_RX_TIMESLOT_HOLD_USECS);
-
-	return val;
 }
 
 /*********************** Function Documentation ***************************************
