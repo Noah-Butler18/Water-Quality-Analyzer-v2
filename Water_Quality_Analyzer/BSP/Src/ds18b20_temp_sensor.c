@@ -7,6 +7,8 @@
 
 #include "ds18b20_temp_sensor.h"
 
+// Driver based off of DS18B20 Chip Datasheet:
+// https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf
 
 /* Limited visibility helper function prototypes */
 static void DS18B20_GPIOControl(uint8_t InOrOut);

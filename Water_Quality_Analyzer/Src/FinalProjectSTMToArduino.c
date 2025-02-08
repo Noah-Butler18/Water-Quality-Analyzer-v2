@@ -20,15 +20,6 @@ __vo uint8_t Flag_All_Values_Converted = 0;
 /************************ END: Application global variables ************************/
 
 
-#ifdef SLEEP_MODE_ENABLE
-void PWR_SleepUntilInterrupt(void);
-#endif
-
-#ifdef SEMIHOSTING_ENABLE
-//Enable semihosting
-extern void initialise_monitor_handles(void);
-#endif
-
 int main(void)
 {
 	/************************ Semi-hosting INIT ************************/
@@ -54,7 +45,7 @@ int main(void)
 	float freq = 0.5;
 	TIM2_5_SetIT(TIM2, freq);
 
-	/************************ Local variables ************************/
+	/************************ START: Local variables ************************/
 	// Temperature variables
 	uint8_t BufferOneWireRawTemperature[2] = {0,0};
 	float Temperature = 0.0;
@@ -72,6 +63,7 @@ int main(void)
 
 	for(uint8_t temp = 0; temp < I2C_BUFFER_SIZE; temp++)
 		BufferDataToArduino[temp] = 0;
+	/************************ END: Local variables ************************/
 
 	while(1)
 	{

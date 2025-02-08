@@ -112,11 +112,20 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
 */
 #define SEMIHOSTING_ENABLE
 
+#ifdef SEMIHOSTING_ENABLE
+//Enable semihosting
+extern void initialise_monitor_handles(void);
+#endif
+
 /*
  * TODO: Comment out "#define SLEEP_MODE_ENABLE" if not using power saving
  * Macro used to test power usage with power saving enabled vs disabled
 */
 #define SLEEP_MODE_ENABLE
+
+#ifdef SLEEP_MODE_ENABLE
+void PWR_SleepUntilInterrupt(void);
+#endif
 /*-------------------- END: USER CONFIG ITEMS --------------------*/
 
 #endif /* FINALPROJECTSTMTOARDUINO_H_ */
