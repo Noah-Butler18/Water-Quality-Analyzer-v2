@@ -129,24 +129,23 @@ void TIM2_IRQHandler(void)
 {
 	// Note: Wakes up processor from sleep mode
 
-#ifdef TIMING_TESTING_ENABLE
-	TESTING_PIN_WRITE_0();
-#endif
-
 	// Clear interrupt flag
 	TIM2_5_IRQHandling(TIM2);
-
-#ifdef TIMING_TESTING_ENABLE
-	TESTING_PIN_WRITE_1();
-#endif
 }
 
 void ADC_IRQHandler(void)
 {
 	// Note: Wakes up processor from sleep mode
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_0();
+#endif
 
 	// Read values in from TDS sensor first, then turbidity sensor
 	ADC_IRQHandling(&ADCHandle);
+
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_1();
+#endif
 }
 
 void I2C_MasterSendDataToArduino(uint8_t *Buffer, uint32_t Length)
@@ -290,7 +289,7 @@ void ADC_WQEInitialize(void)
 	ADCHandle.ADC_Config.ADC_Seq_Order[0] = ADC_IN1;						//ADC channel sequence order = 1) ADC_IN1 - TDS sensor
 	ADCHandle.ADC_Config.ADC_Seq_Order[1] = ADC_IN2;						//ADC channel sequence order = 2) ADC_IN2 - Turbidity sensor
 
-	ADCHandle.pADCx = ADC1;												//Using ADC1 peripheral
+	ADCHandle.pADCx = WQE_ADC;												//Using ADC1 peripheral
 
 	ADC_Init(&ADCHandle);
 }
@@ -473,8 +472,15 @@ void ADC_ApplicationEventCallBack(ADC_Handle_t *pADCHandle, uint8_t AppEvent)
 			// Change the channel selected to be converted in single channel mode to the next channel.
 			pADCHandle->pADCx->SQR3 >>= 5;
 
-			// Restart the ADC to keep converting channels
-			ADC_StartADC(pADCHandle);
+			// Turn on ADC to keep converting channels
+			TURN_ON_ADC();
+
+			// Set ADC to start converting - if already converting, issue an application event
+			if( ADC_GetFlagStatus(pADCHandle->pADCx, ADC_FLAG_STRT) )
+				ADC_ApplicationEventCallBack(pADCHandle, ADC_ERROR_STRT);
+
+			// Start the ADC again
+			START_ADC();
 		}
 	}
 }

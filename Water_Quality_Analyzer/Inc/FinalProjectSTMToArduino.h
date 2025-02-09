@@ -73,9 +73,15 @@
 #define NUM_OF_ANALOG_CONVERSIONS				2			//TDS and Turbidity
 #define ARM_CM4_SCR_ADDR						( (__vo uint32_t *) 0xE000ED10 )
 #define ANALOG_SENSOR_SUPPLY_VOLTAGE			( (float) 3.3 )
+#define WQE_ADC 								ADC1
 #define ADC_DIGITAL_RESOLUTION					4095
 #define ARDUINO_I2C_SLAVE_ADDRESS				(0x68)
 #define I2C_BUFFER_SIZE							6
+
+/*-------------------- START: MACRO FUNCTIONS --------------------*/
+#define TURN_ON_ADC() 							( WQE_ADC->CR2 |= (1 << ADC_CR2_ADON) )
+#define START_ADC() 							( WQE_ADC->CR2 |= (1 << ADC_CR2_SWSTART) )
+/*-------------------- END: MACRO FUNCTIONS --------------------*/
 
 /*-------------------- START: FUNCTION PROTOTYPES --------------------*/
 void I2C_MasterSendDataToArduino(uint8_t *Buffer, uint32_t Length);
