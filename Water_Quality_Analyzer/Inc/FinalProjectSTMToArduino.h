@@ -111,10 +111,11 @@ void I2C_ConvertTDSPPMToBytes(uint16_t TDSPPM, uint8_t *Bufferi2c);
  * 6. Debug using STLINK GDB server configuration and remove "monitor arm semihosting enable" in startup if present
 */
 #define SEMIHOSTING_ENABLE
-
 #ifdef SEMIHOSTING_ENABLE
+
 //Enable semihosting
 extern void initialise_monitor_handles(void);
+
 #endif
 
 /*
@@ -122,10 +123,38 @@ extern void initialise_monitor_handles(void);
  * Macro used to test power usage with power saving enabled vs disabled
 */
 #define SLEEP_MODE_ENABLE
-
 #ifdef SLEEP_MODE_ENABLE
+
 void PWR_SleepUntilInterrupt(void);
+
 #endif
+
+/*
+ * TODO: Comment out "#define TIMING_TESTING_ENABLE" if not using GPIO pins to test timings
+ * Macro can be used in conjunction with a logic analyzer to test timings of ISR latency, comms, etc.
+ * Any ISR/function/delay timing to measure should have its contents wrapped in the pin low and pin high macros
+ * Measuring the time the pin is pulled low gives total duration
+ *		Example:
+ *			Start: Interrupt request happens and program enters ISR. In ISR:
+ *				1. TESTING_PIN_WRITE_0();
+ *				2. *ISR does stuff*
+ *				3. TESTING_PIN_WRITE_1();
+ *			End: ISR exits. Logic analyzer captures trace and software can be used to measure timing
+ *
+ * NOTE: Make sure IO pin is free:
+ * 		https://www.st.com/resource/en/user_manual/um1472-discovery-kit-with-stm32f407vg-mcu-stmicroelectronics.pdf
+*/
+#define TIMING_TESTING_ENABLE
+#ifdef TIMING_TESTING_ENABLE
+
+#define TIMING_TESTING_GPIO_PORT				( GPIOA )
+#define TIMING_TESTING_GPIO_PIN					8
+
+#define TESTING_PIN_WRITE_1() 		( TIMING_TESTING_GPIO_PORT->ODR |= ( 1 << TIMING_TESTING_GPIO_PIN ) )
+#define TESTING_PIN_WRITE_0() 		( TIMING_TESTING_GPIO_PORT->ODR &= ~( 1 << TIMING_TESTING_GPIO_PIN ) )
+
+#endif
+
 /*-------------------- END: USER CONFIG ITEMS --------------------*/
 
 #endif /* FINALPROJECTSTMTOARDUINO_H_ */

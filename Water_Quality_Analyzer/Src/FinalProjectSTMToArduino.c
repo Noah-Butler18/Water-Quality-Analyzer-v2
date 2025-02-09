@@ -129,8 +129,16 @@ void TIM2_IRQHandler(void)
 {
 	// Note: Wakes up processor from sleep mode
 
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_0();
+#endif
+
 	// Clear interrupt flag
 	TIM2_5_IRQHandling(TIM2);
+
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_1();
+#endif
 }
 
 void ADC_IRQHandler(void)
@@ -211,6 +219,27 @@ void GPIO_WQEInitialize(void)
 	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = GPIO_PIN_NO_2;			//GPIO pin in analog mode for Turbidity ADC (PA2 is free IO)
 
 	GPIO_Init(&GPIOHandle);
+
+#ifdef TIMING_TESTING_ENABLE
+
+	//Initialize GPIO pin to measure timings using logic analyzer:
+	memset(&GPIOHandle,0,sizeof(GPIOHandle));
+	GPIOHandle.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_OUT;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinNumber = TIMING_TESTING_GPIO_PIN;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_PP;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH;
+	GPIOHandle.GPIO_PinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;
+
+	GPIOHandle.pGPIOx = TIMING_TESTING_GPIO_PORT;
+
+	// Start pin out logic HIGH.
+	// Any ISR/function/delay timing to measure should have its contents wrapped in the pin low and pin high macros
+	// Measuring the time the pin is pulled low gives total duration
+	GPIOHandle.pGPIOx->ODR |= ( GPIO_PIN_SET << TIMING_TESTING_GPIO_PIN);
+
+	GPIO_Init(&GPIOHandle);
+
+#endif
 
 	//Initialize I2C pins of the master STM32
 	memset(&GPIOHandle,0,sizeof(GPIOHandle)); 		//sets each member element of the structure to zero. Avoids bugs caused by random garbage values in local variables upon first declaration
