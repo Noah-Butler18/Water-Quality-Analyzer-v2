@@ -137,7 +137,7 @@ void TIM2_5_ClearFlag(TIM2_5_RegDef_t *pTIMx, uint8_t FlagName)
 
  	 * @Note		- Uses: blocking function that delays application for a specified amount of microseconds
 */
-void TIM2_5_Delay(TIM2_5_RegDef_t *pTIMx, float MicroSeconds)
+inline void TIM2_5_Delay(TIM2_5_RegDef_t *pTIMx, uint32_t MicroSeconds)
 {
 	//At 16*10^6Hz for TIM timer counter, that translates to 1 increment per 0.0625 microseconds
 	//To translate user argument to TIM roll over register value, need to use simple proportion
@@ -147,23 +147,23 @@ void TIM2_5_Delay(TIM2_5_RegDef_t *pTIMx, float MicroSeconds)
 	pTIMx->ARR = RESET;
 	pTIMx->CNT = RESET;
 
-	double RollOverVal = ( ( ( (double) APB1 ) / 1000000 ) * MicroSeconds );
+	uint32_t RollOverVal = ( APB1  / 1000000 ) * MicroSeconds;
 
 	//2. Write value into ARR register
-	pTIMx->ARR = ( uint32_t ) RollOverVal;
+	pTIMx->ARR = RollOverVal;
 
 	//3. Enable counter to begin counting
 	pTIMx->CR1 |= ( 1 << TIM2_5_CR1_CEN );
 
 	//4. Block processor until overflow (counter value reached)
-	while( !TIM2_5_GetFlagStatus(pTIMx,TIM_FLAG_UIF) )
+	while( TIM2_5_GET_UIF_FLAG(pTIMx) != FLAG_SET )
 		;
 
 	//5. Disable CNT from further incrementing so that it resets and stays at 0.
 	pTIMx->CR1 &= ~( 1 << TIM2_5_CR1_CEN );
 
 	//6. Clear update event (CNT = ARR) flag
-	TIM2_5_ClearFlag(pTIMx,TIM_FLAG_UIF);
+	TIM2_5_CLEAR_UIF_FLAG(pTIMx);
 }
 
 

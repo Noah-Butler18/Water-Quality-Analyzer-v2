@@ -13,8 +13,15 @@
 /*
  * I2C status register related flag status definitions
  */
-
 #define TIM_FLAG_UIF							( 1 << TIM2_5_SR_UIF )
+
+/*
+ * Macro functions
+ */
+#define TIM2_5_GET_UIF_FLAG(pTIMx)				(	( pTIMx->SR & TIM_FLAG_UIF ) ? \
+													( FLAG_SET ) : \
+													( FLAG_RESET ) )
+#define TIM2_5_CLEAR_UIF_FLAG(pTIMx)			( pTIMx->SR &= ~( TIM_FLAG_UIF ) )
 
 
 
@@ -34,7 +41,7 @@ void TIM2_5_SetDelayInit(TIM2_5_RegDef_t *pTIMx);
  */
 uint8_t TIM2_5_GetFlagStatus(TIM2_5_RegDef_t *pTIMx, uint8_t FlagName);
 void TIM2_5_ClearFlag(TIM2_5_RegDef_t *pTIMx, uint8_t FlagName);
-void TIM2_5_Delay(TIM2_5_RegDef_t *pTIMx, float MicroSeconds);
+void TIM2_5_Delay(TIM2_5_RegDef_t *pTIMx, uint32_t MicroSeconds);
 
 void TIM2_5_SetIT(TIM2_5_RegDef_t *pTIMx, float freq);
 

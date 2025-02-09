@@ -30,7 +30,7 @@ void DS18B20_Config(void)
 	//Configure DQ pin
 	DS18B20_pin.pGPIOx = DS18B20_GPIO_PORT;
 
-	DS18B20_pin.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_OUT;						//Pin will start out as output, then switch between input / output as comms. progress
+	DS18B20_pin.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_IN;							//Pin will start out as input, then switch between input / output as comms. progress
 	DS18B20_pin.GPIO_PinConfig.GPIO_PinOPType = GPIO_OP_TYPE_OD;					//As required by Maxim’s exclusive 1-Wire bus protocol. Data line requires a PU resisotr of 4.7k Ohms
 	DS18B20_pin.GPIO_PinConfig.GPIO_PinPuPdControl = DS18B20_GPIO_PIN_NO_PUPD;		//Using external 4.7kOhm resistor
 	DS18B20_pin.GPIO_PinConfig.GPIO_PinSpeed = GPIO_OSPEED_HIGH; 					//4nS t_fall when pulling line down
@@ -102,7 +102,7 @@ inline void DS18B20_MasterGenerateWriteTimeSlot(uint8_t WriteValue)
 	DS18B20_SET_PIN_OUTPUT();
 	DS18B20_PIN_WRITE_0();
 
-	if( WriteValue == GPIO_PIN_SET )
+	if( WriteValue )
 	{
 		//2. If generating a write '1' time slot, release bus within 15us but wait at least 1us.
 		//   Pull-up resistor will automatically pull bus up to HIGH
