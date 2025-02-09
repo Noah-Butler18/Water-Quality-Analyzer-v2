@@ -77,6 +77,7 @@
 #define ADC_DIGITAL_RESOLUTION					4095
 #define ARDUINO_I2C_SLAVE_ADDRESS				(0x68)
 #define I2C_BUFFER_SIZE							6
+#define TIM_INTERRUPT_MAX_FREQ					2 // 	1/TIM_INTERRUPT_MAX_FREQ = time between interrupts
 
 /*-------------------- START: MACRO FUNCTIONS --------------------*/
 #define TURN_ON_ADC() 							( WQE_ADC->CR2 |= (1 << ADC_CR2_ADON) )
@@ -150,7 +151,7 @@ void PWR_SleepUntilInterrupt(void);
  * NOTE: Make sure IO pin is free:
  * 		https://www.st.com/resource/en/user_manual/um1472-discovery-kit-with-stm32f407vg-mcu-stmicroelectronics.pdf
 */
-#define TIMING_TESTING_ENABLE
+//#define TIMING_TESTING_ENABLE
 #ifdef TIMING_TESTING_ENABLE
 
 #define TIMING_TESTING_GPIO_PORT				( GPIOA )

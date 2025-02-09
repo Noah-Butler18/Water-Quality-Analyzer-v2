@@ -43,6 +43,12 @@ int main(void)
 
 	/************************ TIM interrupt configuration & enable ************************/
 	float freq = 0.5;
+
+	// Assert that the TIM interrupt is no more frequent than it takes main loop to execute
+	// As of 2-9-25, this threshold is 0.5 seconds
+	if( freq > TIM_INTERRUPT_MAX_FREQ)
+		while(1);
+
 	TIM2_5_SetIT(TIM2, freq);
 
 	/************************ START: Local variables ************************/
@@ -70,6 +76,10 @@ int main(void)
 
 #ifdef SLEEP_MODE_ENABLE
 		PWR_SleepUntilInterrupt();
+#endif
+
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_0();
 #endif
 
 		// NOTE: when TIM interrupt is triggered, processor wakes up and starts executing sequentially from this point
@@ -118,9 +128,15 @@ int main(void)
 		uint32_t len = (sizeof(BufferDataToArduino))/(sizeof(BufferDataToArduino[0]));
 		I2C_MasterSendDataToArduino(&BufferDataToArduino[0], len);
 
+
+
 #ifdef SEMIHOSTING_ENABLE
 		printf("Sent:  | 0x%X | 0x%X | 0x%X | 0x%X | 0x%X | 0x%X |\n", BufferDataToArduino[0], BufferDataToArduino[1], BufferDataToArduino[2], BufferDataToArduino[3], BufferDataToArduino[4], BufferDataToArduino[5] );
 		printf("Current water readings: Temp - %.2f°C   TDS - %dppm   Turbidity - %.2f%% \n", Temperature, TDS, Turbidity);
+#endif
+
+#ifdef TIMING_TESTING_ENABLE
+	TESTING_PIN_WRITE_1();
 #endif
 	}
 }
@@ -136,16 +152,9 @@ void TIM2_IRQHandler(void)
 void ADC_IRQHandler(void)
 {
 	// Note: Wakes up processor from sleep mode
-#ifdef TIMING_TESTING_ENABLE
-	TESTING_PIN_WRITE_0();
-#endif
 
 	// Read values in from TDS sensor first, then turbidity sensor
 	ADC_IRQHandling(&ADCHandle);
-
-#ifdef TIMING_TESTING_ENABLE
-	TESTING_PIN_WRITE_1();
-#endif
 }
 
 void I2C_MasterSendDataToArduino(uint8_t *Buffer, uint32_t Length)
