@@ -17,6 +17,11 @@ I2C_Handle_t I2CHandle;
 
 //Flags
 __vo uint8_t Flag_All_Values_Converted = 0;
+
+#ifndef SLEEP_MODE_ENABLE
+__vo uint8_t TIM_Delay_Flag = 0;
+#endif
+
 /************************ END: Application global variables ************************/
 
 
@@ -76,6 +81,12 @@ int main(void)
 
 #ifdef SLEEP_MODE_ENABLE
 		PWR_SleepUntilInterrupt();
+#else
+		// Block until TIM interrupt occurs
+		while( TIM_Delay_Flag != 1 )
+				;
+
+		TIM_Delay_Flag = 0;
 #endif
 
 #ifdef TIMING_TESTING_ENABLE
@@ -147,6 +158,11 @@ void TIM2_IRQHandler(void)
 
 	// Clear interrupt flag
 	TIM2_5_IRQHandling(TIM2);
+
+#ifndef SLEEP_MODE_ENABLE
+	// Notify main application that TIM interrupt has occurred
+	TIM_Delay_Flag = 1;
+#endif
 }
 
 void ADC_IRQHandler(void)

@@ -128,8 +128,11 @@ extern void initialise_monitor_handles(void);
 /*
  * TODO: Comment out "#define SLEEP_MODE_ENABLE" if not using power saving
  * Macro used to test power usage with power saving enabled vs disabled
+ *
+ * NOTE: To test power, connect an ammeter across the leads of JP1
+ * 		see: https://www.st.com/resource/en/user_manual/um1472-discovery-kit-with-stm32f407vg-mcu-stmicroelectronics.pdf
 */
-#define SLEEP_MODE_ENABLE
+//#define SLEEP_MODE_ENABLE
 #ifdef SLEEP_MODE_ENABLE
 
 void PWR_SleepUntilInterrupt(void);
@@ -151,7 +154,7 @@ void PWR_SleepUntilInterrupt(void);
  * NOTE: Make sure IO pin is free:
  * 		https://www.st.com/resource/en/user_manual/um1472-discovery-kit-with-stm32f407vg-mcu-stmicroelectronics.pdf
 */
-//#define TIMING_TESTING_ENABLE
+#define TIMING_TESTING_ENABLE
 #ifdef TIMING_TESTING_ENABLE
 
 #define TIMING_TESTING_GPIO_PORT				( GPIOA )
